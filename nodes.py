@@ -1,4 +1,5 @@
 import base64
+import gc
 import json
 import os
 from io import BytesIO
@@ -83,6 +84,62 @@ def _image_tensor_to_data_url(image) -> str:
 _LAST_MODEL_BY_BASE_URL: Dict[str, str] = {}
 
 
+def _clear_vram_before_run(enabled: bool) -> Dict:
+    if not enabled:
+        return {"requested": False, "ok": True, "steps": []}
+
+    steps: List[str] = []
+    errors: List[str] = []
+
+    try:
+        gc.collect()
+        steps.append("gc.collect")
+    except Exception as e:
+        errors.append(f"gc.collect failed: {e}")
+
+    try:
+        import comfy.model_management as model_management  # type: ignore
+
+        # 优先使用 ComfyUI 官方卸载路径，避免仅清 cache 但模型仍常驻显存。
+        if hasattr(model_management, "unload_all_models"):
+            model_management.unload_all_models()
+            steps.append("comfy.model_management.unload_all_models")
+
+        if hasattr(model_management, "cleanup_models"):
+            try:
+                model_management.cleanup_models()
+                steps.append("comfy.model_management.cleanup_models")
+            except TypeError:
+                # 兼容部分版本 cleanup_models 需要参数。
+                model_management.cleanup_models(True)
+                steps.append("comfy.model_management.cleanup_models(True)")
+
+        if hasattr(model_management, "soft_empty_cache"):
+            model_management.soft_empty_cache()
+            steps.append("comfy.model_management.soft_empty_cache")
+        elif hasattr(model_management, "empty_cache"):
+            model_management.empty_cache()
+            steps.append("comfy.model_management.empty_cache")
+    except Exception as e:
+        errors.append(f"comfy model_management clear failed: {e}")
+
+    try:
+        import torch  # type: ignore
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            steps.append("torch.cuda.empty_cache")
+    except Exception as e:
+        errors.append(f"torch cuda clear failed: {e}")
+
+    return {
+        "requested": True,
+        "ok": len(errors) == 0,
+        "steps": steps,
+        "errors": errors,
+    }
+
+
 class DocumentLoaderNode:
     @classmethod
     def INPUT_TYPES(cls):
@@ -148,10 +205,6 @@ class VectorStoreBuilderNode:
                 "chunk_size": ("INT", {"default": 400, "min": 100, "max": 4000, "step": 10}),
                 "chunk_overlap": ("INT", {"default": 80, "min": 0, "max": 2000, "step": 10}),
                 "show_retrieval_log": ("BOOLEAN", {"default": True, "label_on": "日志开", "label_off": "日志关"}),
-                "unload_embedding_model_after_build": (
-                    "BOOLEAN",
-                    {"default": True, "label_on": "卸载模型", "label_off": "保留模型"},
-                ),
             }
         }
 
@@ -168,7 +221,6 @@ class VectorStoreBuilderNode:
         chunk_size: int,
         chunk_overlap: int,
         show_retrieval_log: bool,
-        unload_embedding_model_after_build: bool,
     ):
         selected_model = str(embedding_model or "").strip()
         if not selected_model:
@@ -182,16 +234,12 @@ class VectorStoreBuilderNode:
             chunk_overlap=int(chunk_overlap),
             index_name=index_name.strip(),
         )
-        unload_info = None
-        if unload_embedding_model_after_build:
-            unload_info = unload_embedding_model(selected_model)
+        unload_info = unload_embedding_model(selected_model)
         info["show_retrieval_log"] = bool(show_retrieval_log)
-        info["unload_embedding_model_after_build"] = bool(unload_embedding_model_after_build)
         info["embedding_unload_info"] = unload_info
         summary = (
             f"向量库构建完成: {info['index_name']}, 文档数: {info['documents_count']}, "
-            f"chunk数: {info['chunks_count']}, 模型: {selected_model}, 目录: {info['index_dir']}, "
-            f"卸载策略: {'unload' if unload_embedding_model_after_build else 'keep'}"
+            f"chunk数: {info['chunks_count']}, 模型: {selected_model}, 目录: {info['index_dir']}"
         )
         return (info, summary)
 
@@ -218,6 +266,10 @@ class LMStudioRAGChatNode:
                 "max_tokens": ("INT", {"default": 512, "min": 32, "max": 8192, "step": 16}),
                 "top_k": ("INT", {"default": 5, "min": 1, "max": 20, "step": 1}),
                 "stream": ("BOOLEAN", {"default": False, "label_on": "流式开", "label_off": "流式关"}),
+                "clear_vram_before_run": (
+                    "BOOLEAN",
+                    {"default": True, "label_on": "运行前清理", "label_off": "直接运行"},
+                ),
                 "unload_model_after_response": (
                     "BOOLEAN",
                     {"default": True, "label_on": "卸载模型", "label_off": "保留模型"},
@@ -244,11 +296,16 @@ class LMStudioRAGChatNode:
         max_tokens: int,
         top_k: int,
         stream: bool,
+        clear_vram_before_run: bool,
         unload_model_after_response: bool,
         rag_index=None,
         image=None,
     ):
         base = base_url.strip()
+        vram_cleanup = _clear_vram_before_run(bool(clear_vram_before_run))
+        if not vram_cleanup.get("ok", True):
+            print(f"[EasyRAG][显存清理] 运行前清理失败: {vram_cleanup.get('errors', [])}")
+
         available_models = list_lmstudio_models(base, timeout=4)
         chosen_model = (model or "").strip()
         if (not chosen_model) and available_models:
@@ -313,6 +370,7 @@ class LMStudioRAGChatNode:
             "chat": response["raw"],
             "selected_model": selected_model,
             "available_models": available_models,
+            "vram_cleanup_before_run": vram_cleanup,
             "auto_unload_before_switch": auto_unload_before_switch,
             "unload_requested": bool(unload_model_after_response),
             "unload_status": unload_status,
@@ -342,6 +400,10 @@ class LMStudioRAGChatSimpleNode:
                         "default": "你是一个严谨的本地RAG助手，优先根据给定上下文回答。",
                     },
                 ),
+                "clear_vram_before_run": (
+                    "BOOLEAN",
+                    {"default": True, "label_on": "运行前清理", "label_off": "直接运行"},
+                ),
                 "unload_model_after_response": (
                     "BOOLEAN",
                     {"default": True, "label_on": "卸载模型", "label_off": "保留模型"},
@@ -364,11 +426,16 @@ class LMStudioRAGChatSimpleNode:
         base_url: str,
         model: str,
         system_prompt: str,
+        clear_vram_before_run: bool,
         unload_model_after_response: bool,
         rag_index=None,
         image=None,
     ):
         base = base_url.strip()
+        vram_cleanup = _clear_vram_before_run(bool(clear_vram_before_run))
+        if not vram_cleanup.get("ok", True):
+            print(f"[EasyRAG][显存清理] 运行前清理失败: {vram_cleanup.get('errors', [])}")
+
         available_models = list_lmstudio_models(base, timeout=4)
         chosen_model = (model or "").strip()
         if (not chosen_model) and available_models:

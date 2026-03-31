@@ -245,32 +245,72 @@ def unload_embedding_model(model_name: Optional[str] = None) -> Dict:
     - model_name 非空: 仅卸载指定模型
     """
     unloaded: List[str] = []
+    models_to_release: List[Any] = []
+    errors: List[str] = []
     with EmbeddingBackend._MODEL_CACHE_LOCK:
         cache = EmbeddingBackend._MODEL_CACHE or {}
         if model_name is None:
             unloaded = list(cache.keys())
+            models_to_release = list(cache.values())
             cache.clear()
         else:
             key = str(model_name).strip()
             if key in cache:
-                cache.pop(key, None)
+                model_obj = cache.pop(key, None)
+                if model_obj is not None:
+                    models_to_release.append(model_obj)
                 unloaded.append(key)
         EmbeddingBackend._MODEL_CACHE = cache
 
-    # 尝试释放显存
+    # 主动释放对象引用，尽可能把权重从 GPU 挪走
+    for model_obj in models_to_release:
+        try:
+            if hasattr(model_obj, "cpu"):
+                model_obj.cpu()
+        except Exception as e:
+            errors.append(f"model.cpu failed: {e}")
+        try:
+            if hasattr(model_obj, "to"):
+                model_obj.to("cpu")
+        except Exception as e:
+            errors.append(f"model.to('cpu') failed: {e}")
+
+    models_to_release.clear()
+
+    # 尝试进一步释放显存
     try:
         import gc
+
         gc.collect()
         try:
             import torch  # type: ignore
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+                if hasattr(torch.cuda, "ipc_collect"):
+                    torch.cuda.ipc_collect()
         except Exception:
-            pass
+            errors.append("torch cuda cleanup failed")
+    except Exception as e:
+        errors.append(f"gc cleanup failed: {e}")
+
+    try:
+        import comfy.model_management as model_management  # type: ignore
+
+        if hasattr(model_management, "cleanup_models"):
+            try:
+                model_management.cleanup_models()
+            except TypeError:
+                model_management.cleanup_models(True)
+        if hasattr(model_management, "soft_empty_cache"):
+            model_management.soft_empty_cache()
+        elif hasattr(model_management, "empty_cache"):
+            model_management.empty_cache()
     except Exception:
+        # 该模块在非 ComfyUI 运行环境下可能不存在，忽略即可。
         pass
 
-    return {"unloaded": unloaded, "count": len(unloaded)}
+    return {"unloaded": unloaded, "count": len(unloaded), "errors": errors, "ok": len(errors) == 0}
 
 
 def default_index_root() -> Path:
