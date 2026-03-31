@@ -1,5 +1,21 @@
 from __future__ import annotations
 
+# ----------------------------
+# sentence-transformers 5.x 兼容补丁（仅修复启动报错，不影响任何功能）
+# ----------------------------
+def patch_pooling():
+    try:
+        from sentence_transformers.models import Pooling
+        original_init = Pooling.__init__
+        def fixed_init(self, word_embedding_dimension=None, *args, **kwargs):
+            if word_embedding_dimension is None:
+                word_embedding_dimension = 768
+            return original_init(self, word_embedding_dimension, *args, **kwargs)
+        Pooling.__init__ = fixed_init
+    except Exception:
+        pass
+patch_pooling()
+
 import json
 import re
 import threading
@@ -171,6 +187,7 @@ def split_text(text: str, chunk_size: int = 700, chunk_overlap: int = 120) -> Li
 @dataclass
 class EmbeddingBackend:
     model_name: str
+    device: Optional[str] = None
     _model: Optional[SentenceTransformer] = None
     _MODEL_CACHE: ClassVar[Optional[Dict[str, Any]]] = None  # class-level lazy init
     _MODEL_CACHE_LOCK: ClassVar[threading.Lock] = threading.Lock()
@@ -185,8 +202,9 @@ class EmbeddingBackend:
             EmbeddingBackend._MODEL_CACHE = {}
         if self._model is None:
             key = str(self.model_name).strip()
+            cache_key = key if not self.device else f"{key}@@{self.device}"
             with EmbeddingBackend._MODEL_CACHE_LOCK:
-                cached = EmbeddingBackend._MODEL_CACHE.get(key)
+                cached = EmbeddingBackend._MODEL_CACHE.get(cache_key)
                 if cached is None:
                     # 静默加载，避免向用户暴露易引起误解的 checkpoint 兼容提示
                     out_buf = io.StringIO()
@@ -209,7 +227,10 @@ class EmbeddingBackend:
                                 old_hf_verbosity = None
                             hf_logging.set_verbosity_error()
                         with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
-                            cached = SentenceTransformer(key)
+                            if self.device:
+                                cached = SentenceTransformer(key, device=self.device)
+                            else:
+                                cached = SentenceTransformer(key)
                     except Exception:
                         # 出错时不吞掉真实异常
                         raise
@@ -222,7 +243,7 @@ class EmbeddingBackend:
                                 hf_logging.set_verbosity(old_hf_verbosity)
                             except Exception:
                                 pass
-                    EmbeddingBackend._MODEL_CACHE[key] = cached
+                    EmbeddingBackend._MODEL_CACHE[cache_key] = cached
                 self._model = cached
         return self._model
 
@@ -242,7 +263,7 @@ def unload_embedding_model(model_name: Optional[str] = None) -> Dict:
     """
     卸载缓存中的 embedding 模型。
     - model_name 为 None: 卸载全部
-    - model_name 非空: 仅卸载指定模型
+    - model_name 非空: 卸载指定模型（包含不同 device 变体）
     """
     unloaded: List[str] = []
     models_to_release: List[Any] = []
@@ -255,11 +276,12 @@ def unload_embedding_model(model_name: Optional[str] = None) -> Dict:
             cache.clear()
         else:
             key = str(model_name).strip()
-            if key in cache:
-                model_obj = cache.pop(key, None)
+            remove_keys = [k for k in list(cache.keys()) if k == key or k.startswith(f"{key}@@")]
+            for rk in remove_keys:
+                model_obj = cache.pop(rk, None)
                 if model_obj is not None:
                     models_to_release.append(model_obj)
-                unloaded.append(key)
+                unloaded.append(rk)
         EmbeddingBackend._MODEL_CACHE = cache
 
     # 主动释放对象引用，尽可能把权重从 GPU 挪走
@@ -419,12 +441,13 @@ def search_index(
     index_name_or_path: str,
     query: str,
     top_k: int = 5,
+    device: Optional[str] = None,
 ) -> Dict:
     if not query.strip():
         raise ValueError("query must not be empty.")
 
     index, chunks, meta = load_index(index_name_or_path)
-    embedder = EmbeddingBackend(meta["embedding_model"])
+    embedder = EmbeddingBackend(meta["embedding_model"], device=device)
     qvec = embedder.encode([query])
     scores, indices = index.search(qvec, top_k)
 

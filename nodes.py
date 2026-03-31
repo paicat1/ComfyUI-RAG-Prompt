@@ -325,9 +325,10 @@ class LMStudioRAGChatNode:
 
         context_used = ""
         show_retrieval_log = bool((rag_index or {}).get("show_retrieval_log", False))
+        embedding_unload_after_retrieval = None
         if rag_index is not None:
             index_ref = rag_index.get("index_dir") or rag_index.get("index_name")
-            result = search_index(index_ref, query=question, top_k=int(top_k))
+            result = search_index(index_ref, query=question, top_k=int(top_k), device="cpu")
             context_used = result["context"]
             if show_retrieval_log:
                 print(f"[EasyRAG][问答检索] question={question!r} top_k={top_k}")
@@ -340,6 +341,20 @@ class LMStudioRAGChatNode:
                         f"[EasyRAG][问答检索#{i}] score={item.get('score', 0.0):.4f} "
                         f"source={item.get('source', '')} text={snippet}"
                     )
+
+            retrieval_embedding_model = str((rag_index or {}).get("embedding_model", "")).strip()
+            embedding_unload_after_retrieval = unload_embedding_model(
+                retrieval_embedding_model if retrieval_embedding_model else None
+            )
+            if show_retrieval_log:
+                print(
+                    f"[EasyRAG][问答检索] embedding检索后卸载: "
+                    f"count={int(embedding_unload_after_retrieval.get('count', 0))} "
+                    f"ok={bool(embedding_unload_after_retrieval.get('ok', True))}"
+                )
+                unload_errors = embedding_unload_after_retrieval.get("errors") or []
+                if unload_errors:
+                    print(f"[EasyRAG][问答检索] embedding检索后卸载错误: {unload_errors}")
 
         image_data_url = _image_tensor_to_data_url(image) if image is not None else ""
         response = lmstudio_chat(
@@ -371,6 +386,7 @@ class LMStudioRAGChatNode:
             "selected_model": selected_model,
             "available_models": available_models,
             "vram_cleanup_before_run": vram_cleanup,
+            "embedding_unload_after_retrieval": embedding_unload_after_retrieval,
             "auto_unload_before_switch": auto_unload_before_switch,
             "unload_requested": bool(unload_model_after_response),
             "unload_status": unload_status,
@@ -454,7 +470,7 @@ class LMStudioRAGChatSimpleNode:
         show_retrieval_log = bool((rag_index or {}).get("show_retrieval_log", False))
         if rag_index is not None:
             index_ref = rag_index.get("index_dir") or rag_index.get("index_name")
-            result = search_index(index_ref, query=question)
+            result = search_index(index_ref, query=question, device="cpu")
             context_used = result["context"]
             if show_retrieval_log:
                 print(f"[EasyRAG][简约检索] question={question!r} top_k=5(default)")
@@ -467,6 +483,19 @@ class LMStudioRAGChatSimpleNode:
                         f"[EasyRAG][简约检索#{i}] score={item.get('score', 0.0):.4f} "
                         f"source={item.get('source', '')} text={snippet}"
                     )
+            retrieval_embedding_model = str((rag_index or {}).get("embedding_model", "")).strip()
+            embedding_unload_after_retrieval = unload_embedding_model(
+                retrieval_embedding_model if retrieval_embedding_model else None
+            )
+            if show_retrieval_log:
+                print(
+                    f"[EasyRAG][简约检索] embedding检索后卸载: "
+                    f"count={int(embedding_unload_after_retrieval.get('count', 0))} "
+                    f"ok={bool(embedding_unload_after_retrieval.get('ok', True))}"
+                )
+                unload_errors = embedding_unload_after_retrieval.get("errors") or []
+                if unload_errors:
+                    print(f"[EasyRAG][简约检索] embedding检索后卸载错误: {unload_errors}")
         elif show_retrieval_log:
             print("[EasyRAG][简约检索] 未连接 rag_index，跳过检索。")
 
