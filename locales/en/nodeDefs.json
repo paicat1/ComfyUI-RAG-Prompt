@@ -87,6 +87,9 @@
       },
       "image": {
         "name": "Image"
+      },
+      "seed": {
+        "name": "Seed"
       }
     },
     "outputs": {
@@ -128,6 +131,9 @@
       },
       "image": {
         "name": "Image"
+      },
+      "seed": {
+        "name": "Seed"
       }
     },
     "outputs": {

@@ -290,6 +290,10 @@ class LMStudioRAGChatNode:
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 2.0, "step": 0.05}),
                 "max_tokens": ("INT", {"default": 512, "min": 32, "max": 8192, "step": 16}),
                 "top_k": ("INT", {"default": 5, "min": 1, "max": 20, "step": 1}),
+                "seed": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1, "control_after_generate": True},
+                ),
                 "stream": ("BOOLEAN", {"default": False, "label_on": t("流式开"), "label_off": t("流式关")}),
                 "clear_vram_before_run": (
                     "BOOLEAN",
@@ -320,6 +324,7 @@ class LMStudioRAGChatNode:
         temperature: float,
         max_tokens: int,
         top_k: int,
+        seed: int,
         stream: bool,
         clear_vram_before_run: bool,
         unload_model_after_response: bool,
@@ -407,6 +412,7 @@ class LMStudioRAGChatNode:
             system_prompt=system_prompt,
             temperature=float(temperature),
             max_tokens=int(max_tokens),
+            seed=int(seed),
             api_mode="responses",
             stream=bool(stream),
             emit_stream_log=bool(stream or show_retrieval_log),
@@ -429,6 +435,7 @@ class LMStudioRAGChatNode:
             "vram_cleanup_before_run": vram_cleanup,
             "embedding_unload_after_retrieval": embedding_unload_after_retrieval,
             "auto_unload_before_switch": auto_unload_before_switch,
+            "seed": int(seed),
             "unload_requested": bool(unload_model_after_response),
             "unload_status": unload_status,
         }
@@ -457,6 +464,10 @@ class LMStudioRAGChatSimpleNode:
                         "default": t("你是一个严谨的本地RAG助手，优先根据给定上下文回答。"),
                     },
                 ),
+                "seed": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1, "control_after_generate": True},
+                ),
                 "clear_vram_before_run": (
                     "BOOLEAN",
                     {"default": True, "label_on": t("运行前清理"), "label_off": t("直接运行")},
@@ -483,6 +494,7 @@ class LMStudioRAGChatSimpleNode:
         base_url: str,
         model: str,
         system_prompt: str,
+        seed: int,
         clear_vram_before_run: bool,
         unload_model_after_response: bool,
         rag_index=None,
@@ -564,6 +576,7 @@ class LMStudioRAGChatSimpleNode:
             context=context_used,
             image_data_url=image_data_url,
             system_prompt=system_prompt,
+            seed=int(seed),
             api_mode="responses",
             stream=True,
             emit_stream_log=True,

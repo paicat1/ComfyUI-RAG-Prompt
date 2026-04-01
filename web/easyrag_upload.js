@@ -4,9 +4,6 @@ import { t } from "./i18n.js";
 
 const TARGET_NODE_NAMES = new Set([
   "EasyRAGDocumentLoader",
-  "EasyRAGVectorStoreBuilder",
-  "EasyRAGLMStudioChatAdvanced",
-  "EasyRAGLMStudioChatSimple",
 ]);
 
 function getComboValues(widget) {

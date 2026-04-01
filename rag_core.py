@@ -773,6 +773,7 @@ def lmstudio_chat(
     system_prompt: str = "You are a helpful assistant.",
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
+    seed: Optional[int] = None,
     api_mode: str = "responses",
     stream: bool = False,
     emit_stream_log: bool = False,
@@ -816,6 +817,8 @@ def lmstudio_chat(
             payload["temperature"] = float(temperature)
         if max_tokens is not None:
             payload["max_output_tokens"] = int(max_tokens)
+        if seed is not None:
+            payload["seed"] = int(seed)
     else:
         endpoint = base + "/v1/chat/completions"
         payload = {
@@ -830,6 +833,8 @@ def lmstudio_chat(
             payload["temperature"] = float(temperature)
         if max_tokens is not None:
             payload["max_tokens"] = int(max_tokens)
+        if seed is not None:
+            payload["seed"] = int(seed)
 
     try:
         if stream:
@@ -867,6 +872,7 @@ def lmstudio_chat(
                 system_prompt=system_prompt,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                seed=seed,
                 api_mode="chat_completions",
                 stream=stream,
                 emit_stream_log=emit_stream_log,

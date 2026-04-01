@@ -87,6 +87,9 @@
       },
       "image": {
         "name": "图像"
+      },
+      "seed": {
+        "name": "种子"
       }
     },
     "outputs": {
@@ -128,6 +131,9 @@
       },
       "image": {
         "name": "图像"
+      },
+      "seed": {
+        "name": "种子"
       }
     },
     "outputs": {
