@@ -28,6 +28,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
+
+from .i18n import t
+
 try:
     import faiss  # type: ignore
 except Exception:  # pragma: no cover
@@ -74,7 +77,7 @@ def parse_json_to_text(raw: str) -> str:
 def load_single_document(path: Path, encoding: str = "utf-8") -> Dict:
     ext = path.suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
-        raise ValueError(f"Unsupported file extension: {path.suffix}")
+        raise ValueError(t("Unsupported file extension: {suffix}", suffix=path.suffix))
 
     if ext in {".txt", ".md"}:
         text = _safe_read_text(path, encoding=encoding)
@@ -196,7 +199,7 @@ class EmbeddingBackend:
     def model(self) -> SentenceTransformer:
         if SentenceTransformer is None:
             raise ImportError(
-                "sentence-transformers 未安装。请执行: pip install -r requirements.txt"
+                t("sentence-transformers 未安装。请执行: pip install -r requirements.txt")
             )
         if EmbeddingBackend._MODEL_CACHE is None:
             EmbeddingBackend._MODEL_CACHE = {}
@@ -290,18 +293,19 @@ def unload_embedding_model(model_name: Optional[str] = None) -> Dict:
             if hasattr(model_obj, "cpu"):
                 model_obj.cpu()
         except Exception as e:
-            errors.append(f"model.cpu failed: {e}")
+            errors.append(t("model.cpu failed: {error}", error=e))
         try:
             if hasattr(model_obj, "to"):
                 model_obj.to("cpu")
         except Exception as e:
-            errors.append(f"model.to('cpu') failed: {e}")
+            errors.append(t("model.to('cpu') failed: {error}", error=e))
 
     models_to_release.clear()
 
     # 尝试进一步释放显存
     try:
         import gc
+        # gc.collect is shown in debug output, so localize the label as well.
 
         gc.collect()
         try:
@@ -312,9 +316,9 @@ def unload_embedding_model(model_name: Optional[str] = None) -> Dict:
                 if hasattr(torch.cuda, "ipc_collect"):
                     torch.cuda.ipc_collect()
         except Exception:
-            errors.append("torch cuda cleanup failed")
+            errors.append(t("torch cuda cleanup failed"))
     except Exception as e:
-        errors.append(f"gc cleanup failed: {e}")
+        errors.append(t("gc cleanup failed: {error}", error=e))
 
     try:
         import comfy.model_management as model_management  # type: ignore
@@ -349,11 +353,11 @@ def build_faiss_index(
     index_name: str,
 ) -> Dict:
     if faiss is None:
-        raise ImportError("faiss 未安装。请执行: pip install -r requirements.txt")
+        raise ImportError(t("faiss 未安装。请执行: pip install -r requirements.txt"))
     if not documents:
-        raise ValueError("No documents provided.")
+        raise ValueError(t("No documents provided."))
     if not index_name.strip():
-        raise ValueError("index_name must not be empty.")
+        raise ValueError(t("index_name must not be empty."))
 
     embedder = EmbeddingBackend(embedding_model)
     chunks: List[Dict] = []
@@ -375,7 +379,7 @@ def build_faiss_index(
             )
 
     if not chunks:
-        raise ValueError("No chunks generated from documents.")
+        raise ValueError(t("No chunks generated from documents."))
 
     chunk_texts = [x["text"] for x in chunks]
     vectors = embedder.encode(chunk_texts)
@@ -422,14 +426,14 @@ def build_faiss_index(
 
 def load_index(index_name_or_path: str) -> Tuple[Any, List[Dict], Dict]:
     if faiss is None:
-        raise ImportError("faiss 未安装。请执行: pip install -r requirements.txt")
+        raise ImportError(t("faiss 未安装。请执行: pip install -r requirements.txt"))
     path = Path(index_name_or_path)
     if path.is_dir():
         index_dir = path
     else:
         index_dir = default_index_root() / index_name_or_path
     if not index_dir.exists():
-        raise FileNotFoundError(f"Index directory not found: {index_dir}")
+        raise FileNotFoundError(t("Index directory not found: {index_dir}", index_dir=index_dir))
 
     index = faiss.read_index(str(index_dir / "index.faiss"))
     chunks = json.loads((index_dir / "chunks.json").read_text(encoding="utf-8"))
@@ -444,7 +448,7 @@ def search_index(
     device: Optional[str] = None,
 ) -> Dict:
     if not query.strip():
-        raise ValueError("query must not be empty.")
+        raise ValueError(t("query must not be empty."))
 
     index, chunks, meta = load_index(index_name_or_path)
     embedder = EmbeddingBackend(meta["embedding_model"], device=device)
@@ -486,7 +490,7 @@ def search_index(
 def resolve_lmstudio_model(base_url: str, timeout: int = 20) -> str:
     models = list_lmstudio_models(base_url=base_url, timeout=timeout)
     if not models:
-        raise RuntimeError("LM Studio API 返回空模型列表。")
+        raise RuntimeError(t("LM Studio API 返回空模型列表。"))
     return models[0]
 
 
@@ -780,7 +784,7 @@ def lmstudio_chat(
     final_user_prompt = question.strip()
     if context.strip():
         final_user_prompt = (
-            "请基于以下检索到的上下文回答问题。如果上下文不足，请明确说明。\n\n"
+            f"{t('请基于以下检索到的上下文回答问题。如果上下文不足，请明确说明。')}\n\n"
             f"【上下文】\n{context.strip()}\n\n"
             f"【问题】\n{question.strip()}"
         )
@@ -869,7 +873,11 @@ def lmstudio_chat(
                 timeout=timeout,
             )
         raise RuntimeError(
-            f"无法连接 LM Studio API: {endpoint}。请确认 LM Studio 已启动本地服务并监听该地址。原始错误: {e}"
+            t(
+                "LM Studio API 无法连接: {endpoint}。请确认 LM Studio 已启动本地服务并监听该地址。原始错误: {error}",
+                endpoint=endpoint,
+                error=e,
+            )
         ) from e
     resp.raise_for_status()
     data = resp.json()

@@ -1,0 +1,139 @@
+{
+  "EasyRAGDocumentLoader": {
+    "display_name": "EasyRAG - 文档加载",
+    "description": "从 ComfyUI input 目录加载一个文档用于 RAG。",
+    "inputs": {
+      "document": {
+        "name": "文档"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "文档"
+      },
+      "1": {
+        "name": "摘要"
+      }
+    }
+  },
+  "EasyRAGVectorStoreBuilder": {
+    "display_name": "EasyRAG - 向量库构建(FAISS)",
+    "description": "根据已加载文档构建 FAISS 向量索引。",
+    "inputs": {
+      "documents": {
+        "name": "文档"
+      },
+      "index_name": {
+        "name": "索引名"
+      },
+      "embedding_model": {
+        "name": "向量模型"
+      },
+      "chunk_size": {
+        "name": "分块大小"
+      },
+      "chunk_overlap": {
+        "name": "分块重叠"
+      },
+      "show_retrieval_log": {
+        "name": "显示检索日志"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "RAG 索引"
+      },
+      "1": {
+        "name": "摘要"
+      }
+    }
+  },
+  "EasyRAGLMStudioChatAdvanced": {
+    "display_name": "EasyRAG - LM Studio API (高级)",
+    "description": "支持可选 RAG 检索与图像输入的问答节点。",
+    "inputs": {
+      "question": {
+        "name": "问题"
+      },
+      "base_url": {
+        "name": "服务地址"
+      },
+      "model": {
+        "name": "模型"
+      },
+      "system_prompt": {
+        "name": "系统提示词"
+      },
+      "temperature": {
+        "name": "温度"
+      },
+      "max_tokens": {
+        "name": "最大输出词数"
+      },
+      "top_k": {
+        "name": "Top K"
+      },
+      "stream": {
+        "name": "流式输出"
+      },
+      "clear_vram_before_run": {
+        "name": "运行前清理显存"
+      },
+      "unload_model_after_response": {
+        "name": "回答后卸载模型"
+      },
+      "rag_index": {
+        "name": "RAG 索引"
+      },
+      "image": {
+        "name": "图像"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "答案"
+      },
+      "1": {
+        "name": "上下文"
+      },
+      "2": {
+        "name": "原始响应"
+      }
+    }
+  },
+  "EasyRAGLMStudioChatSimple": {
+    "display_name": "EasyRAG - LM Studio API (简约)",
+    "description": "精简参数的问答节点，支持可选 RAG 检索。",
+    "inputs": {
+      "question": {
+        "name": "问题"
+      },
+      "base_url": {
+        "name": "服务地址"
+      },
+      "model": {
+        "name": "模型"
+      },
+      "system_prompt": {
+        "name": "系统提示词"
+      },
+      "clear_vram_before_run": {
+        "name": "运行前清理显存"
+      },
+      "unload_model_after_response": {
+        "name": "回答后卸载模型"
+      },
+      "rag_index": {
+        "name": "RAG 索引"
+      },
+      "image": {
+        "name": "图像"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "答案"
+      }
+    }
+  }
+}

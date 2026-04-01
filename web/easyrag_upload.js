@@ -1,9 +1,12 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { t } from "./i18n.js";
 
 const TARGET_NODE_NAMES = new Set([
   "EasyRAGDocumentLoader",
-  "EasyRAG - 文档加载",
+  "EasyRAGVectorStoreBuilder",
+  "EasyRAGLMStudioChatAdvanced",
+  "EasyRAGLMStudioChatSimple",
 ]);
 
 function getComboValues(widget) {
@@ -41,7 +44,7 @@ app.registerExtension({
       if (hasButton) return r;
 
       const self = this;
-      this.addWidget("button", "upload_document", "上传文档", async () => {
+      this.addWidget("button", "upload_document", t("上传文档"), async () => {
         const picker = document.createElement("input");
         picker.type = "file";
         picker.accept = ".txt,.json,.md,.pdf";
@@ -82,8 +85,8 @@ app.registerExtension({
               app.graph.setDirtyCanvas(true, true);
             }
           } catch (err) {
-            console.error("[EasyRAG] 文档上传失败:", err);
-            alert(`文档上传失败: ${err?.message || err}`);
+            console.error("[EasyRAG][上传] 文档上传失败:", err);
+            alert(t("Document upload failed: {error}", { values: { error: err?.message || err } }));
           } finally {
             picker.remove();
           }

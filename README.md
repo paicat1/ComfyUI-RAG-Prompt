@@ -16,6 +16,16 @@
 3. `EasyRAG - LM Studio API (高级)`
 4. `EasyRAG - LM Studio API (简约)`
 
+## 语言设置
+
+在 ComfyUI 的设置里可以找到 `EasyRAG 语言`：
+
+- `跟随 ComfyUI`
+- `中文`
+- `英文`
+
+切换后刷新页面即可生效。后端运行提示和节点面板文案都会跟着切换。
+
 ## 安装
 
 在当前插件目录安装依赖：

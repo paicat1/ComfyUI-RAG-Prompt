@@ -10,6 +10,7 @@ import folder_paths
 import numpy as np
 from PIL import Image
 
+from .i18n import t
 from .rag_core import (
     build_faiss_index,
     extract_answer_between_newlines,
@@ -93,9 +94,9 @@ def _clear_vram_before_run(enabled: bool) -> Dict:
 
     try:
         gc.collect()
-        steps.append("gc.collect")
+        steps.append(t("gc.collect"))
     except Exception as e:
-        errors.append(f"gc.collect failed: {e}")
+        errors.append(t("gc.collect failed: {error}", error=e))
 
     try:
         import comfy.model_management as model_management  # type: ignore
@@ -103,34 +104,34 @@ def _clear_vram_before_run(enabled: bool) -> Dict:
         # 优先使用 ComfyUI 官方卸载路径，避免仅清 cache 但模型仍常驻显存。
         if hasattr(model_management, "unload_all_models"):
             model_management.unload_all_models()
-            steps.append("comfy.model_management.unload_all_models")
+            steps.append(t("comfy.model_management.unload_all_models"))
 
         if hasattr(model_management, "cleanup_models"):
             try:
                 model_management.cleanup_models()
-                steps.append("comfy.model_management.cleanup_models")
+                steps.append(t("comfy.model_management.cleanup_models"))
             except TypeError:
                 # 兼容部分版本 cleanup_models 需要参数。
                 model_management.cleanup_models(True)
-                steps.append("comfy.model_management.cleanup_models(True)")
+                steps.append(t("comfy.model_management.cleanup_models(True)"))
 
         if hasattr(model_management, "soft_empty_cache"):
             model_management.soft_empty_cache()
-            steps.append("comfy.model_management.soft_empty_cache")
+            steps.append(t("comfy.model_management.soft_empty_cache"))
         elif hasattr(model_management, "empty_cache"):
             model_management.empty_cache()
-            steps.append("comfy.model_management.empty_cache")
+            steps.append(t("comfy.model_management.empty_cache"))
     except Exception as e:
-        errors.append(f"comfy model_management clear failed: {e}")
+        errors.append(t("comfy model_management clear failed: {error}", error=e))
 
     try:
         import torch  # type: ignore
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-            steps.append("torch.cuda.empty_cache")
+            steps.append(t("torch.cuda.empty_cache"))
     except Exception as e:
-        errors.append(f"torch cuda clear failed: {e}")
+        errors.append(t("torch cuda clear failed: {error}", error=e))
 
     return {
         "requested": True,
@@ -148,7 +149,9 @@ class DocumentLoaderNode:
                 "document": (
                     _list_input_docs_for_combo(),
                     {
-                        "tooltip": "选择文档（txt/json/md/pdf）。可用下方“上传文档”按钮上传到 input 目录后再选择。"
+                        "tooltip": t(
+                            "选择文档（txt/json/md/pdf）。可用下方“上传文档”按钮上传到 input 目录后再选择。"
+                        )
                     },
                 ),
             }
@@ -163,18 +166,24 @@ class DocumentLoaderNode:
     def VALIDATE_INPUTS(cls, document):
         if document:
             if not folder_paths.exists_annotated_filepath(document):
-                return f"无效文档: {document}"
+                return t("无效文档: {document}", document=document)
             if not _is_supported_doc_file(document):
-                return f"不支持的文档类型: {document}"
+                return t("不支持的文档类型: {document}", document=document)
         return True
 
     def load_documents(self, document: str):
         if not document:
-            return ([], "请在 document 中选择或上传一个文档（txt/json/md/pdf）。")
+            return ([], t("请在 document 中选择或上传一个文档（txt/json/md/pdf）。"))
 
         file_path = Path(folder_paths.get_annotated_filepath(document)).resolve()
         if not _is_supported_doc_file(str(file_path)):
-            return ([], f"不支持的文档类型: {file_path.suffix}，仅支持 txt/json/md/pdf。")
+            return (
+                [],
+                t(
+                    "不支持的文档类型: {suffix}，仅支持 txt/json/md/pdf。",
+                    suffix=file_path.suffix,
+                ),
+            )
 
         documents: List[Dict] = []
         errors: List[str] = []
@@ -185,7 +194,12 @@ class DocumentLoaderNode:
         except Exception as e:
             errors.append(f"{file_path}: {e}")
 
-        summary = f"文档加载完成。总文件: 1, 成功: {len(documents)}, 失败: {len(errors)}"
+        summary = t(
+            "文档加载完成。总文件: {total}, 成功: {success}, 失败: {failed}",
+            total=1,
+            success=len(documents),
+            failed=len(errors),
+        )
         if errors:
             summary += "\n" + "\n".join(errors[:5])
         return (documents, summary)
@@ -200,11 +214,14 @@ class VectorStoreBuilderNode:
                 "index_name": ("STRING", {"default": "default_index"}),
                 "embedding_model": (
                     _list_local_embedding_models(),
-                    {"tooltip": "仅允许使用 ComfyUI/models/embeddings 下的本地模型"},
+                    {"tooltip": t("仅允许使用 ComfyUI/models/embeddings 下的本地模型")},
                 ),
                 "chunk_size": ("INT", {"default": 400, "min": 100, "max": 4000, "step": 10}),
                 "chunk_overlap": ("INT", {"default": 80, "min": 0, "max": 2000, "step": 10}),
-                "show_retrieval_log": ("BOOLEAN", {"default": True, "label_on": "日志开", "label_off": "日志关"}),
+                "show_retrieval_log": (
+                    "BOOLEAN",
+                    {"default": True, "label_on": t("日志开"), "label_off": t("日志关")},
+                ),
             }
         }
 
@@ -225,7 +242,9 @@ class VectorStoreBuilderNode:
         selected_model = str(embedding_model or "").strip()
         if not selected_model:
             raise ValueError(
-                "未检测到可用 embedding 模型。请先把 sentence-transformers 模型放到 ComfyUI/models/embeddings。"
+                t(
+                    "未检测到可用 embedding 模型。请先把 sentence-transformers 模型放到 ComfyUI/models/embeddings。"
+                )
             )
         info = build_faiss_index(
             documents=documents,
@@ -238,8 +257,14 @@ class VectorStoreBuilderNode:
         info["show_retrieval_log"] = bool(show_retrieval_log)
         info["embedding_unload_info"] = unload_info
         summary = (
-            f"向量库构建完成: {info['index_name']}, 文档数: {info['documents_count']}, "
-            f"chunk数: {info['chunks_count']}, 模型: {selected_model}, 目录: {info['index_dir']}"
+            t(
+                "向量库构建完成: {index_name}, 文档数: {documents_count}, chunk数: {chunks_count}, 模型: {selected_model}, 目录: {index_dir}",
+                index_name=info["index_name"],
+                documents_count=info["documents_count"],
+                chunks_count=info["chunks_count"],
+                selected_model=selected_model,
+                index_dir=info["index_dir"],
+            )
         )
         return (info, summary)
 
@@ -253,26 +278,26 @@ class LMStudioRAGChatNode:
                 "base_url": ("STRING", {"default": "http://127.0.0.1:1234"}),
                 "model": (
                     _list_lmstudio_models_for_ui(),
-                    {"tooltip": "模型选项来自 LM Studio API（默认地址: 127.0.0.1:1234）"},
+                    {"tooltip": t("模型选项来自 LM Studio API（默认地址: 127.0.0.1:1234）")},
                 ),
                 "system_prompt": (
                     "STRING",
                     {
                         "multiline": True,
-                        "default": "你是一个严谨的本地RAG助手，优先根据给定上下文回答。",
+                        "default": t("你是一个严谨的本地RAG助手，优先根据给定上下文回答。"),
                     },
                 ),
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 2.0, "step": 0.05}),
                 "max_tokens": ("INT", {"default": 512, "min": 32, "max": 8192, "step": 16}),
                 "top_k": ("INT", {"default": 5, "min": 1, "max": 20, "step": 1}),
-                "stream": ("BOOLEAN", {"default": False, "label_on": "流式开", "label_off": "流式关"}),
+                "stream": ("BOOLEAN", {"default": False, "label_on": t("流式开"), "label_off": t("流式关")}),
                 "clear_vram_before_run": (
                     "BOOLEAN",
-                    {"default": True, "label_on": "运行前清理", "label_off": "直接运行"},
+                    {"default": True, "label_on": t("运行前清理"), "label_off": t("直接运行")},
                 ),
                 "unload_model_after_response": (
                     "BOOLEAN",
-                    {"default": True, "label_on": "卸载模型", "label_off": "保留模型"},
+                    {"default": True, "label_on": t("卸载模型"), "label_off": t("保留模型")},
                 ),
             },
             "optional": {
@@ -304,7 +329,7 @@ class LMStudioRAGChatNode:
         base = base_url.strip()
         vram_cleanup = _clear_vram_before_run(bool(clear_vram_before_run))
         if not vram_cleanup.get("ok", True):
-            print(f"[EasyRAG][显存清理] 运行前清理失败: {vram_cleanup.get('errors', [])}")
+            print(t("[EasyRAG][显存清理] 运行前清理失败: {errors}", errors=vram_cleanup.get("errors", [])))
 
         available_models = list_lmstudio_models(base, timeout=4)
         chosen_model = (model or "").strip()
@@ -331,15 +356,24 @@ class LMStudioRAGChatNode:
             result = search_index(index_ref, query=question, top_k=int(top_k), device="cpu")
             context_used = result["context"]
             if show_retrieval_log:
-                print(f"[EasyRAG][问答检索] question={question!r} top_k={top_k}")
+                print(t("[EasyRAG][问答检索] question={question!r} top_k={top_k}", question=question, top_k=top_k))
                 print(
-                    f"[EasyRAG][问答检索] rag_hit={result.get('rag_hit')} best_score={result.get('best_score', 0.0):.4f}"
+                    t(
+                        "[EasyRAG][问答检索] rag_hit={rag_hit} best_score={best_score:.4f}",
+                        rag_hit=result.get("rag_hit"),
+                        best_score=result.get("best_score", 0.0),
+                    )
                 )
                 for i, item in enumerate(result.get("items", []), start=1):
                     snippet = (item.get("text", "") or "").replace("\n", " ")[:120]
                     print(
-                        f"[EasyRAG][问答检索#{i}] score={item.get('score', 0.0):.4f} "
-                        f"source={item.get('source', '')} text={snippet}"
+                        t(
+                            "[EasyRAG][问答检索#{i}] score={score:.4f} source={source} chunk_text={chunk_text}",
+                            i=i,
+                            score=item.get("score", 0.0),
+                            source=item.get("source", ""),
+                            chunk_text=snippet,
+                        )
                     )
 
             retrieval_embedding_model = str((rag_index or {}).get("embedding_model", "")).strip()
@@ -348,13 +382,20 @@ class LMStudioRAGChatNode:
             )
             if show_retrieval_log:
                 print(
-                    f"[EasyRAG][问答检索] embedding检索后卸载: "
-                    f"count={int(embedding_unload_after_retrieval.get('count', 0))} "
-                    f"ok={bool(embedding_unload_after_retrieval.get('ok', True))}"
+                    t(
+                        "[EasyRAG][问答检索] embedding检索后卸载: count={count} ok={ok}",
+                        count=int(embedding_unload_after_retrieval.get("count", 0)),
+                        ok=bool(embedding_unload_after_retrieval.get("ok", True)),
+                    )
                 )
                 unload_errors = embedding_unload_after_retrieval.get("errors") or []
                 if unload_errors:
-                    print(f"[EasyRAG][问答检索] embedding检索后卸载错误: {unload_errors}")
+                    print(
+                        t(
+                            "[EasyRAG][问答检索] embedding检索后卸载错误: {errors}",
+                            errors=unload_errors,
+                        )
+                    )
 
         image_data_url = _image_tensor_to_data_url(image) if image is not None else ""
         response = lmstudio_chat(
@@ -407,22 +448,22 @@ class LMStudioRAGChatSimpleNode:
                 "base_url": ("STRING", {"default": "http://127.0.0.1:1234"}),
                 "model": (
                     _list_lmstudio_models_for_ui(),
-                    {"tooltip": "模型选项来自 LM Studio API（默认地址: 127.0.0.1:1234）"},
+                    {"tooltip": t("模型选项来自 LM Studio API（默认地址: 127.0.0.1:1234）")},
                 ),
                 "system_prompt": (
                     "STRING",
                     {
                         "multiline": True,
-                        "default": "你是一个严谨的本地RAG助手，优先根据给定上下文回答。",
+                        "default": t("你是一个严谨的本地RAG助手，优先根据给定上下文回答。"),
                     },
                 ),
                 "clear_vram_before_run": (
                     "BOOLEAN",
-                    {"default": True, "label_on": "运行前清理", "label_off": "直接运行"},
+                    {"default": True, "label_on": t("运行前清理"), "label_off": t("直接运行")},
                 ),
                 "unload_model_after_response": (
                     "BOOLEAN",
-                    {"default": True, "label_on": "卸载模型", "label_off": "保留模型"},
+                    {"default": True, "label_on": t("卸载模型"), "label_off": t("保留模型")},
                 ),
             },
             "optional": {
@@ -450,7 +491,7 @@ class LMStudioRAGChatSimpleNode:
         base = base_url.strip()
         vram_cleanup = _clear_vram_before_run(bool(clear_vram_before_run))
         if not vram_cleanup.get("ok", True):
-            print(f"[EasyRAG][显存清理] 运行前清理失败: {vram_cleanup.get('errors', [])}")
+            print(t("[EasyRAG][显存清理] 运行前清理失败: {errors}", errors=vram_cleanup.get("errors", [])))
 
         available_models = list_lmstudio_models(base, timeout=4)
         chosen_model = (model or "").strip()
@@ -473,15 +514,24 @@ class LMStudioRAGChatSimpleNode:
             result = search_index(index_ref, query=question, device="cpu")
             context_used = result["context"]
             if show_retrieval_log:
-                print(f"[EasyRAG][简约检索] question={question!r} top_k=5(default)")
+                print(t("[EasyRAG][简约检索] question={question!r} top_k=5(default)", question=question))
                 print(
-                    f"[EasyRAG][简约检索] rag_hit={result.get('rag_hit')} best_score={result.get('best_score', 0.0):.4f}"
+                    t(
+                        "[EasyRAG][简约检索] rag_hit={rag_hit} best_score={best_score:.4f}",
+                        rag_hit=result.get("rag_hit"),
+                        best_score=result.get("best_score", 0.0),
+                    )
                 )
                 for i, item in enumerate(result.get("items", []), start=1):
                     snippet = (item.get("text", "") or "").replace("\n", " ")[:120]
                     print(
-                        f"[EasyRAG][简约检索#{i}] score={item.get('score', 0.0):.4f} "
-                        f"source={item.get('source', '')} text={snippet}"
+                        t(
+                            "[EasyRAG][简约检索#{i}] score={score:.4f} source={source} chunk_text={chunk_text}",
+                            i=i,
+                            score=item.get("score", 0.0),
+                            source=item.get("source", ""),
+                            chunk_text=snippet,
+                        )
                     )
             retrieval_embedding_model = str((rag_index or {}).get("embedding_model", "")).strip()
             embedding_unload_after_retrieval = unload_embedding_model(
@@ -489,15 +539,22 @@ class LMStudioRAGChatSimpleNode:
             )
             if show_retrieval_log:
                 print(
-                    f"[EasyRAG][简约检索] embedding检索后卸载: "
-                    f"count={int(embedding_unload_after_retrieval.get('count', 0))} "
-                    f"ok={bool(embedding_unload_after_retrieval.get('ok', True))}"
+                    t(
+                        "[EasyRAG][简约检索] embedding检索后卸载: count={count} ok={ok}",
+                        count=int(embedding_unload_after_retrieval.get("count", 0)),
+                        ok=bool(embedding_unload_after_retrieval.get("ok", True)),
+                    )
                 )
                 unload_errors = embedding_unload_after_retrieval.get("errors") or []
                 if unload_errors:
-                    print(f"[EasyRAG][简约检索] embedding检索后卸载错误: {unload_errors}")
+                    print(
+                        t(
+                            "[EasyRAG][简约检索] embedding检索后卸载错误: {errors}",
+                            errors=unload_errors,
+                        )
+                    )
         elif show_retrieval_log:
-            print("[EasyRAG][简约检索] 未连接 rag_index，跳过检索。")
+            print(t("[EasyRAG][简约检索] 未连接 rag_index，跳过检索。"))
 
         image_data_url = _image_tensor_to_data_url(image) if image is not None else ""
         response = lmstudio_chat(
@@ -532,8 +589,8 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "EasyRAGDocumentLoader": "EasyRAG - 文档加载",
-    "EasyRAGVectorStoreBuilder": "EasyRAG - 向量库构建(FAISS)",
-    "EasyRAGLMStudioChatAdvanced": "EasyRAG - LM Studio API (高级)",
-    "EasyRAGLMStudioChatSimple": "EasyRAG - LM Studio API (简约)",
+    "EasyRAGDocumentLoader": "EasyRAG - Document Loader",
+    "EasyRAGVectorStoreBuilder": "EasyRAG - Vector Store Builder (FAISS)",
+    "EasyRAGLMStudioChatAdvanced": "EasyRAG - LM Studio API (Advanced)",
+    "EasyRAGLMStudioChatSimple": "EasyRAG - LM Studio API (Simple)",
 }

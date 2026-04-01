@@ -1,0 +1,139 @@
+{
+  "EasyRAGDocumentLoader": {
+    "display_name": "EasyRAG - Document Loader",
+    "description": "Load one document from the ComfyUI input folder for RAG.",
+    "inputs": {
+      "document": {
+        "name": "Document"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Documents"
+      },
+      "1": {
+        "name": "Summary"
+      }
+    }
+  },
+  "EasyRAGVectorStoreBuilder": {
+    "display_name": "EasyRAG - Vector Store Builder (FAISS)",
+    "description": "Build a FAISS vector index from loaded documents.",
+    "inputs": {
+      "documents": {
+        "name": "Documents"
+      },
+      "index_name": {
+        "name": "Index Name"
+      },
+      "embedding_model": {
+        "name": "Embedding Model"
+      },
+      "chunk_size": {
+        "name": "Chunk Size"
+      },
+      "chunk_overlap": {
+        "name": "Chunk Overlap"
+      },
+      "show_retrieval_log": {
+        "name": "Show Retrieval Log"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "RAG Index"
+      },
+      "1": {
+        "name": "Summary"
+      }
+    }
+  },
+  "EasyRAGLMStudioChatAdvanced": {
+    "display_name": "EasyRAG - LM Studio API (Advanced)",
+    "description": "Ask with optional RAG retrieval and image context.",
+    "inputs": {
+      "question": {
+        "name": "Question"
+      },
+      "base_url": {
+        "name": "Base URL"
+      },
+      "model": {
+        "name": "Model"
+      },
+      "system_prompt": {
+        "name": "System Prompt"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "max_tokens": {
+        "name": "Max Tokens"
+      },
+      "top_k": {
+        "name": "Top K"
+      },
+      "stream": {
+        "name": "Stream"
+      },
+      "clear_vram_before_run": {
+        "name": "Clear VRAM Before Run"
+      },
+      "unload_model_after_response": {
+        "name": "Unload Model After Response"
+      },
+      "rag_index": {
+        "name": "RAG Index"
+      },
+      "image": {
+        "name": "Image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Answer"
+      },
+      "1": {
+        "name": "Context"
+      },
+      "2": {
+        "name": "Raw Response"
+      }
+    }
+  },
+  "EasyRAGLMStudioChatSimple": {
+    "display_name": "EasyRAG - LM Studio API (Simple)",
+    "description": "Ask with minimal controls and optional RAG retrieval.",
+    "inputs": {
+      "question": {
+        "name": "Question"
+      },
+      "base_url": {
+        "name": "Base URL"
+      },
+      "model": {
+        "name": "Model"
+      },
+      "system_prompt": {
+        "name": "System Prompt"
+      },
+      "clear_vram_before_run": {
+        "name": "Clear VRAM Before Run"
+      },
+      "unload_model_after_response": {
+        "name": "Unload Model After Response"
+      },
+      "rag_index": {
+        "name": "RAG Index"
+      },
+      "image": {
+        "name": "Image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Answer"
+      }
+    }
+  }
+}
