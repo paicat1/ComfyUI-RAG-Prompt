@@ -1,18 +1,18 @@
 {
   "EasyRAGDocumentLoader": {
     "display_name": "EasyRAG - Document Loader",
-    "description": "Load one document from the ComfyUI input folder for RAG.",
-    "inputs": {
-      "document": {
-        "name": "Document"
-      }
-    },
+    "description": "Load a document or folder from the ComfyUI input directory for RAG. Folders automatically load all supported documents inside.",
     "outputs": {
       "0": {
         "name": "Documents"
       },
       "1": {
         "name": "Summary"
+      }
+    },
+    "inputs": {
+      "document": {
+        "name": "Document"
       }
     }
   },
@@ -139,6 +139,86 @@
     "outputs": {
       "0": {
         "name": "Answer"
+      }
+    }
+  },
+  "EasyRAGTwoStageRAG": {
+    "display_name": "EasyRAG - Two-Stage RAG",
+    "description": "Two-stage RAG with independent stage prompts and retrieval instructions. Users fill Stage 1/Stage 2 prompts directly in the node.",
+    "inputs": {
+      "question": {
+        "name": "Question"
+      },
+      "base_url": {
+        "name": "Base URL"
+      },
+      "model": {
+        "name": "Model"
+      },
+      "stage1_system_prompt": {
+        "name": "Stage 1 System Prompt"
+      },
+      "stage2_system_prompt": {
+        "name": "Stage 2 System Prompt"
+      },
+
+      "temperature": {
+        "name": "Temperature"
+      },
+      "max_tokens": {
+        "name": "Max Tokens"
+      },
+      "top_k_stage1": {
+        "name": "Stage 1 Top K"
+      },
+      "top_k_stage2": {
+        "name": "Stage 2 Top K"
+      },
+      "stream": {
+        "name": "Stream"
+      },
+      "clear_vram_before_run": {
+        "name": "Clear VRAM Before Run"
+      },
+      "unload_model_after_response": {
+        "name": "Unload Model After Response"
+      },
+      "show_retrieval_log": {
+        "name": "Show Retrieval Log"
+      },
+      "rag_index": {
+        "name": "RAG Index"
+      },
+      "image": {
+        "name": "Image"
+      },
+      "seed": {
+        "name": "Seed"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Answer"
+      },
+      "1": {
+        "name": "Retrieval Debug"
+      }
+    }
+  },
+  "EasyRAGPrebuiltLibrary": {
+    "display_name": "EasyRAG - Prebuilt Library",
+    "description": "Select a prebuilt knowledge base from the local rag folder for RAG construction.",
+    "inputs": {
+      "library_name": {
+        "name": "Library Name"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Documents"
+      },
+      "1": {
+        "name": "Summary"
       }
     }
   }

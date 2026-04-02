@@ -250,15 +250,40 @@ class EmbeddingBackend:
                 self._model = cached
         return self._model
 
-    def encode(self, texts: List[str]) -> np.ndarray:
+    def _is_instruction_aware(self) -> bool:
+        """检测当前模型是否支持 instruction-aware 编码（如 Qwen3-Embedding 系列）。"""
+        try:
+            config = self.model[0].auto_model.config if hasattr(self.model, "modules") else None
+            if config is None and hasattr(self.model, "modules"):
+                for module in self.model.modules():
+                    if hasattr(module, "config"):
+                        config = module.config
+                        break
+            if config is not None:
+                model_id = getattr(config, "_name_or_path", "") or ""
+                model_id_lower = model_id.lower()
+                if "qwen3" in model_id_lower and "embed" in model_id_lower:
+                    return True
+                # 检查 sentence_transformers 配置中的 prompts
+                if hasattr(self.model, "prompts") and self.model.prompts:
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def encode(self, texts: List[str], prompt: Optional[str] = None) -> np.ndarray:
         if not texts:
             return np.zeros((0, 1), dtype=np.float32)
-        vectors = self.model.encode(
-            texts,
-            normalize_embeddings=True,
-            convert_to_numpy=True,
-            show_progress_bar=False,
-        )
+        encode_kwargs: Dict[str, Any] = {
+            "normalize_embeddings": True,
+            "convert_to_numpy": True,
+            "show_progress_bar": False,
+        }
+        # instruction-aware 模型（如 Qwen3-Embedding）在 query 端使用 prompt 提升检索精度
+        # document 端不加 prompt（prompt=None 时 sentence-transformers 自动跳过）
+        if prompt is not None and self._is_instruction_aware():
+            encode_kwargs["prompt"] = prompt
+        vectors = self.model.encode(texts, **encode_kwargs)
         return vectors.astype(np.float32)
 
 
@@ -375,6 +400,7 @@ def build_faiss_index(
                     "title": doc.get("title", ""),
                     "text": chunk,
                     "position": i,
+                    "doc_role": doc.get("role", "general"),
                 }
             )
 
@@ -446,20 +472,28 @@ def search_index(
     query: str,
     top_k: int = 5,
     device: Optional[str] = None,
+    role_filter: Optional[List[str]] = None,
+    query_instruction: Optional[str] = None,
 ) -> Dict:
     if not query.strip():
         raise ValueError(t("query must not be empty."))
 
     index, chunks, meta = load_index(index_name_or_path)
     embedder = EmbeddingBackend(meta["embedding_model"], device=device)
-    qvec = embedder.encode([query])
-    scores, indices = index.search(qvec, top_k)
+    qvec = embedder.encode([query], prompt=query_instruction)
+
+    # 如果有 role_filter，需要多取一些结果以补偿被过滤掉的 chunk
+    fetch_k = top_k * 3 if role_filter else top_k
+    scores, indices = index.search(qvec, fetch_k)
 
     items: List[Dict] = []
     for score, idx in zip(scores[0].tolist(), indices[0].tolist()):
         if idx < 0 or idx >= len(chunks):
             continue
         chunk = chunks[idx]
+        # 按 doc_role 过滤
+        if role_filter and chunk.get("doc_role") not in role_filter:
+            continue
         items.append(
             {
                 "score": float(score),
@@ -467,8 +501,11 @@ def search_index(
                 "source": chunk.get("source", ""),
                 "title": chunk.get("title", ""),
                 "position": chunk.get("position", 0),
+                "doc_role": chunk.get("doc_role", "general"),
             }
         )
+        if len(items) >= top_k:
+            break
 
     context_lines: List[str] = []
     for i, item in enumerate(items, start=1):

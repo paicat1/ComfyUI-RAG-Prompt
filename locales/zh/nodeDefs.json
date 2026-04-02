@@ -2,17 +2,17 @@
   "EasyRAGDocumentLoader": {
     "display_name": "EasyRAG - 文档加载",
     "description": "从 ComfyUI input 目录加载一个文档用于 RAG。",
-    "inputs": {
-      "document": {
-        "name": "文档"
-      }
-    },
     "outputs": {
       "0": {
         "name": "文档"
       },
       "1": {
         "name": "摘要"
+      }
+    },
+    "inputs": {
+      "document": {
+        "name": "文档"
       }
     }
   },
@@ -139,6 +139,86 @@
     "outputs": {
       "0": {
         "name": "答案"
+      }
+    }
+  },
+  "EasyRAGTwoStageRAG": {
+    "display_name": "EasyRag-Zimage-2步检索推理",
+    "description": "两阶段 RAG：第一阶段与第二阶段使用独立提示词和独立检索指令，均由用户在节点中填写。",
+    "inputs": {
+      "question": {
+        "name": "问题"
+      },
+      "base_url": {
+        "name": "服务地址"
+      },
+      "model": {
+        "name": "模型"
+      },
+      "stage1_system_prompt": {
+        "name": "第一阶段系统提示词"
+      },
+      "stage2_system_prompt": {
+        "name": "第二阶段系统提示词"
+      },
+
+      "temperature": {
+        "name": "温度"
+      },
+      "max_tokens": {
+        "name": "最大输出词数"
+      },
+      "top_k_stage1": {
+        "name": "第一阶段 Top K"
+      },
+      "top_k_stage2": {
+        "name": "第二阶段 Top K"
+      },
+      "stream": {
+        "name": "流式输出"
+      },
+      "clear_vram_before_run": {
+        "name": "运行前清理显存"
+      },
+      "unload_model_after_response": {
+        "name": "回答后卸载模型"
+      },
+      "show_retrieval_log": {
+        "name": "显示检索日志"
+      },
+      "rag_index": {
+        "name": "RAG 索引"
+      },
+      "image": {
+        "name": "图像"
+      },
+      "seed": {
+        "name": "种子"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "答案"
+      },
+      "1": {
+        "name": "检索调试"
+      }
+    }
+  },
+  "EasyRAGPrebuiltLibrary": {
+    "display_name": "EasyRAG-预制库",
+    "description": "从本地 rag 文件夹中选择预制的数据集库用于构建 RAG（例如 z-image）。",
+    "inputs": {
+      "library_name": {
+        "name": "预制库名称"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "文档"
+      },
+      "1": {
+        "name": "摘要"
       }
     }
   }
