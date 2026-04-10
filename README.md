@@ -1,6 +1,7 @@
 # ComfyUI RAG Prompt (本地) v1.0.0 正式发布
 
 本插件为 ComfyUI 提供本地 RAG 节点，基于原作者 nregret/Comfyui-Easy-RAG 二次开发，在完全兼容原工作流的基础上，做了大量核心优化与功能升级，让知识库使用更自由、更灵活、更高效。
+2026年4月9日，本插件已与Comfyui-Easy-RAG合并，以后更新将直接在https://github.com/nregret/Comfyui-Easy-RAG主库进行，避免代码冲突和覆盖
 
 ---
 
